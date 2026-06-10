@@ -10,7 +10,7 @@ let animationId = null;
 let mediaStream = null;
 
 // Ganti dengan API Key AssemblyAI Anda
-const ASSEMBLYAI_API_KEY = 'MASUKKAN_API_KEY_ANDA_DISINI';
+const ASSEMBLYAI_API_KEY = '634a80b69b6242caad774efbe4b90135';
 
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded', () => {
