@@ -9,6 +9,9 @@ let analyser = null;
 let animationId = null;
 let mediaStream = null;
 
+// Ganti dengan API Key AssemblyAI Anda
+const ASSEMBLYAI_API_KEY = 'MASUKKAN_API_KEY_ANDA_DISINI';
+
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded', () => {
   checkBrowserSupport();
@@ -71,10 +74,10 @@ function startRecording() {
 
   recognition.onerror = (event) => {
     const msgs = {
-      'not-allowed': '⚠ Izin mikrofon ditolak. Aktifkan di pengaturan browser.',
-      'no-speech':   'Tidak ada suara terdeteksi.',
+      'not-allowed': '⚠ Izin mikrofon ditolak.',
+      'no-speech': 'Tidak ada suara terdeteksi.',
       'audio-capture': '⚠ Mikrofon tidak ditemukan.',
-      'network':     '⚠ Masalah jaringan.',
+      'network': '⚠ Masalah jaringan.',
     };
     showToast(msgs[event.error] || `Error: ${event.error}`, true);
     stopRecording();
@@ -181,7 +184,7 @@ function stopWaveform() {
   initWaveformIdle();
 }
 
-// ===== TRANSCRIPT =====
+// ===== TRANSCRIPT DISPLAY =====
 function updateTranscriptDisplay(final, interim = '') {
   const hasContent = final.trim() || interim.trim();
   document.getElementById('emptyState').classList.toggle('hidden', !!hasContent);
@@ -226,61 +229,149 @@ function handleFileSelect(e) {
   const file = e.target.files[0];
   if (file) loadFile(file);
 }
+
+let currentFile = null;
+
 function loadFile(file) {
+  currentFile = file;
   const url = URL.createObjectURL(file);
   document.getElementById('fileName').textContent = file.name;
   document.getElementById('fileSize').textContent = formatBytes(file.size);
   document.getElementById('audioPlayer').src = url;
   document.getElementById('fileInfo').classList.remove('hidden');
 }
+
 function formatBytes(b) {
   if (b < 1024) return `${b} B`;
   if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
   return `${(b/1048576).toFixed(1)} MB`;
 }
 
-// ===== TRANSCRIBE FILE =====
-function transcribeFile() {
-  const player = document.getElementById('audioPlayer');
-  if (!player.src) { showToast('Pilih file terlebih dahulu!', true); return; }
+// ===== ASSEMBLYAI TRANSCRIPTION =====
+async function transcribeFile() {
+  if (!currentFile) { showToast('Pilih file terlebih dahulu!', true); return; }
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) { showToast('Gunakan Google Chrome untuk fitur ini.', true); return; }
+  if (ASSEMBLYAI_API_KEY === 'MASUKKAN_API_KEY_ANDA_DISINI') {
+    showToast('Masukkan API Key AssemblyAI terlebih dahulu!', true);
+    return;
+  }
 
+  // Tampilkan loading
   finalTranscript = '';
-  updateTranscriptDisplay('', 'Memproses audio…');
-  showToast('Memutar dan mentranskripsi audio…');
+  updateTranscriptDisplay('', '⏳ Mengunggah audio ke server...');
+  setTranscribeButtonLoading(true);
 
-  const rec = new SpeechRecognition();
-  rec.lang = 'id-ID';
-  rec.continuous = true;
-  rec.interimResults = true;
+  try {
+    // STEP 1: Upload file audio ke AssemblyAI
+    showToast('Mengunggah file audio...');
+    const uploadUrl = await uploadAudio(currentFile);
 
-  rec.onresult = (event) => {
-    let interim = '';
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const t = event.results[i][0].transcript;
-      if (event.results[i].isFinal) finalTranscript += t + ' ';
-      else interim = t;
-    }
-    updateTranscriptDisplay(finalTranscript, interim);
+    // STEP 2: Kirim request transkripsi
+    updateTranscriptDisplay('', '⏳ Memproses transkripsi...');
+    showToast('Memproses transkripsi...');
+    const transcriptId = await requestTranscription(uploadUrl);
+
+    // STEP 3: Polling hasil transkripsi
+    updateTranscriptDisplay('', '⏳ Menunggu hasil...');
+    const result = await pollTranscription(transcriptId);
+
+    // STEP 4: Tampilkan hasil
+    finalTranscript = result;
+    updateTranscriptDisplay(finalTranscript, '');
+    showToast('Transkripsi selesai! ✅');
+
+  } catch (err) {
+    showToast(`Error: ${err.message}`, true);
+    updateTranscriptDisplay('', '');
+  } finally {
+    setTranscribeButtonLoading(false);
+  }
+}
+
+async function uploadAudio(file) {
+  const response = await fetch('https://api.assemblyai.com/v2/upload', {
+    method: 'POST',
+    headers: {
+      'authorization': ASSEMBLYAI_API_KEY,
+      'content-type': file.type,
+    },
+    body: file,
+  });
+
+  if (!response.ok) throw new Error('Gagal upload audio. Cek API Key Anda.');
+  const data = await response.json();
+  return data.upload_url;
+}
+
+async function requestTranscription(audioUrl) {
+  const langCode = document.getElementById('langSelect').value;
+
+  // Mapping bahasa ke kode AssemblyAI
+  const langMap = {
+    'id-ID': 'id',
+    'en-US': 'en',
+    'en-GB': 'en',
+    'zh-CN': 'zh',
+    'ja-JP': 'ja',
+    'ko-KR': 'ko',
+    'ar-SA': 'ar',
   };
 
-  rec.onerror = (e) => { if (e.error !== 'no-speech') showToast(`Error: ${e.error}`, true); };
+  const response = await fetch('https://api.assemblyai.com/v2/transcript', {
+    method: 'POST',
+    headers: {
+      'authorization': ASSEMBLYAI_API_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      audio_url: audioUrl,
+      language_code: langMap[langCode] || 'id',
+    }),
+  });
 
-  rec.onend = () => {
-    if (!player.paused) {
-      try { rec.start(); } catch(e) {}
-    } else {
-      updateTranscriptDisplay(finalTranscript, '');
-      showToast('Transkripsi selesai!');
+  if (!response.ok) throw new Error('Gagal memulai transkripsi.');
+  const data = await response.json();
+  return data.id;
+}
+
+async function pollTranscription(transcriptId) {
+  const maxAttempts = 60; // maksimal 5 menit
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    await delay(5000); // tunggu 5 detik tiap cek
+
+    const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+      headers: { 'authorization': ASSEMBLYAI_API_KEY },
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'completed') {
+      return data.text;
+    } else if (data.status === 'error') {
+      throw new Error(`Transkripsi gagal: ${data.error}`);
     }
-  };
 
-  player.currentTime = 0;
-  player.play();
-  rec.start();
-  player.onended = () => { setTimeout(() => rec.stop(), 1500); };
+    attempts++;
+    const sisa = maxAttempts - attempts;
+    updateTranscriptDisplay('', `⏳ Memproses... (cek ke-${attempts}, estimasi ${sisa * 5} detik lagi)`);
+  }
+
+  throw new Error('Timeout: transkripsi terlalu lama.');
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function setTranscribeButtonLoading(loading) {
+  const btn = document.querySelector('#panel-file .btn-primary');
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Memproses...`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Mulai Transkripsi`;
 }
 
 // ===== ACTIONS =====
@@ -326,7 +417,12 @@ function showToast(msg, isError = false) {
   toast.style.color       = isError ? '#F87171' : '#14B8A6';
   toast.style.background  = isError ? '#2D1B1B' : '#1E3A5F';
   clearTimeout(toast._timeout);
-  toast._timeout = setTimeout(() => toast.classList.add('hidden'), 3000);
+  toast._timeout = setTimeout(() => toast.classList.add('hidden'), 4000);
 }
+
+// CSS untuk animasi spin
+const style = document.createElement('style');
+style.textContent = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
+document.head.appendChild(style);
 
 window.addEventListener('resize', () => { if (!isRecording) initWaveformIdle(); });
