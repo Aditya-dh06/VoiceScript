@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiceScript — Transkripsi Audio ke Teks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="8" fill="#14B8A6"/>
+        <path d="M9 14a5 5 0 0 0 10 0M14 7v3M14 18v3M9 10v8M19 10v8" stroke="#0F172A" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>VoiceScript</span>
+    </div>
+    <nav class="nav-links">
+      <a href="#cara-kerja">Cara Kerja</a>
+      <a href="#fitur">Fitur</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">✦ Web Speech API &amp; File Upload</div>
+    <h1>Ubah Suara Menjadi<br /><span class="gradient-text">Teks Instan</span></h1>
+    <p class="hero-sub">Rekam langsung dari mikrofon atau unggah file audio. Transkripsi otomatis, akurat, tanpa install apapun.</p>
+  </section>
+
+  <!-- Main App -->
+  <main class="app-container">
+
+    <!-- Tab Switch -->
+    <div class="tab-bar">
+      <button class="tab active" id="tab-mic" onclick="switchTab('mic')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        Rekam Mikrofon
+      </button>
+      <button class="tab" id="tab-file" onclick="switchTab('file')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Upload File Audio
+      </button>
+    </div>
+
+    <!-- Mic Panel -->
+    <div class="panel" id="panel-mic">
+      <div class="mic-area">
+        <!-- Waveform Visualizer -->
+        <div class="waveform-wrap">
+          <canvas id="waveform" width="520" height="80"></canvas>
+        </div>
+
+        <!-- Mic Button -->
+        <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+          <svg class="mic-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          <svg class="stop-icon hidden" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        </button>
+
+        <div class="mic-status" id="micStatus">Klik untuk mulai merekam</div>
+        <div class="recording-timer hidden" id="recTimer">⏺ <span id="timerCount">0:00</span></div>
+      </div>
+
+      <!-- Language Select -->
+      <div class="lang-select-wrap">
+        <label for="langSelect">Bahasa:</label>
+        <select id="langSelect">
+          <option value="id-ID">🇮🇩 Bahasa Indonesia</option>
+          <option value="en-US">🇺🇸 English (US)</option>
+          <option value="en-GB">🇬🇧 English (UK)</option>
+          <option value="ar-SA">🇸🇦 Arab</option>
+          <option value="zh-CN">🇨🇳 Mandarin</option>
+          <option value="ja-JP">🇯🇵 Jepang</option>
+          <option value="ko-KR">🇰🇷 Korea</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- File Upload Panel -->
+    <div class="panel hidden" id="panel-file">
+      <div class="drop-zone" id="dropZone"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)"
+           onclick="document.getElementById('fileInput').click()">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="drop-title">Seret file audio ke sini</p>
+        <p class="drop-sub">atau klik untuk memilih file</p>
+        <span class="drop-formats">MP3 · WAV · OGG · M4A · WEBM</span>
+        <input type="file" id="fileInput" accept="audio/*" class="hidden" onchange="handleFileSelect(event)" />
+      </div>
+
+      <div class="file-info hidden" id="fileInfo">
+        <div class="file-meta">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span id="fileName">—</span>
+          <span id="fileSize" class="tag">—</span>
+        </div>
+        <audio id="audioPlayer" controls class="audio-player"></audio>
+        <button class="btn-primary" onclick="transcribeFile()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Mulai Transkripsi
+        </button>
+      </div>
+    </div>
+
+    <!-- Transcript Output -->
+    <div class="transcript-section" id="transcriptSection">
+      <div class="transcript-header">
+        <h2>Hasil Transkripsi</h2>
+        <div class="transcript-actions">
+          <button class="btn-ghost" onclick="copyText()" id="copyBtn" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Salin
+          </button>
+          <button class="btn-ghost" onclick="downloadText()" id="downloadBtn" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Unduh .txt
+          </button>
+          <button class="btn-ghost danger" onclick="clearText()" id="clearBtn" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            Hapus
+          </button>
+        </div>
+      </div>
+
+      <div class="transcript-box" id="transcriptBox">
+        <div class="empty-state" id="emptyState">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <p>Hasil transkripsi akan muncul di sini</p>
+        </div>
+        <div id="transcriptText" class="transcript-text"></div>
+        <div id="interimText" class="interim-text"></div>
+      </div>
+
+      <div class="word-count" id="wordCount">0 kata · 0 karakter</div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast hidden" id="toast"></div>
+
+  </main>
+
+  <!-- How It Works -->
+  <section class="info-section" id="cara-kerja">
+    <h2>Cara Kerja</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Pilih Input</h3>
+        <p>Rekam langsung dari mikrofon perangkat Anda, atau unggah file audio yang sudah ada.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Proses Otomatis</h3>
+        <p>Web Speech API memproses suara secara real-time dan mengkonversi ke teks.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Salin atau Unduh</h3>
+        <p>Salin hasil ke clipboard atau unduh sebagai file .txt siap pakai.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="info-section" id="fitur">
+    <h2>Fitur Utama</h2>
+    <div class="features">
+      <div class="feature-card">
+        <div class="feat-icon">⚡</div>
+        <h3>Real-time</h3>
+        <p>Transkripsi muncul langsung saat Anda berbicara tanpa delay berarti.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🌐</div>
+        <h3>Multi Bahasa</h3>
+        <p>Mendukung Bahasa Indonesia, Inggris, Arab, Mandarin, Jepang, dan Korea.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">📁</div>
+        <h3>Upload File</h3>
+        <p>Unggah file MP3, WAV, OGG, M4A untuk ditranskripsi.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feat-icon">🔒</div>
+        <h3>Privasi Aman</h3>
+        <p>Semua proses di browser Anda. Tidak ada data yang dikirim ke server kami.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>VoiceScript — Dibuat dengan Web Speech API &amp; JavaScript</p>
+    <p class="footer-note">Bekerja terbaik di Google Chrome · Tidak memerlukan koneksi ke server eksternal</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
